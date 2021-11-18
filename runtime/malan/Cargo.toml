@@ -11,7 +11,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 codec = { package = "parity-scale-codec", version = "2.3.1", default-features = false, features = ["derive"] }
 scale-info = { version = "1.0", default-features = false, features = ["derive"] }
 hex-literal = { version = "0.3.1", optional = true }
-serde = { version = "1.0.101", optional = true, features = ["derive"] }
+serde = { version = "1.0", optional = true, features = ["derive"] }
 smallvec = "1.4.1"
 static_assertions = "1.1.0"
 
@@ -72,13 +72,12 @@ orml-currencies = { git = "https://github.com/chainx-org/ormls", branch = "main"
 
 # ChainX primitives
 chainx-primitives = { path = "../../primitives", default-features = false }
+chainx-runtime-common = { path = "../common", default-features = false }
 # we use feature "ss58check" for using local runtime-interface to check address, if in parachain, do not use this feature
 xp-gateway-bitcoin = { path = "../../primitives/gateway/bitcoin", default-features = false, features = ["ss58check"] }
 xp-mining-staking = { path = "../../primitives/mining/staking", default-features = false }
 xp-protocol = { path = "../../primitives/protocol", default-features = false }
 xp-runtime = { path = "../../primitives/runtime", default-features = false }
-
-chainx-runtime-common = { path = "../../runtime/common", default-features = false }
 
 # ChainX pallets
 xpallet-assets = { path = "../../xpallets/assets", default-features = false }
@@ -117,6 +116,7 @@ pallet-evm-precompile-sha3fips = { git="https://github.com/chainx-org/frontier",
 
 # ETH API
 fp-rpc = { git="https://github.com/chainx-org/frontier", default-features=false, branch="polkadot-v0.9.11" }
+fp-self-contained = { git="https://github.com/chainx-org/frontier", default-features=false, branch="polkadot-v0.9.11" }
 
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.11" }
@@ -151,6 +151,7 @@ std = [
   "pallet-authorship/std",
   "pallet-babe/std",
   "pallet-balances/std",
+  "pallet-bounties/std",
   "pallet-collective/std",
   "pallet-democracy/std",
   "pallet-elections-phragmen/std",
@@ -177,11 +178,11 @@ std = [
   "orml-currencies/std",
   # ChainX primitives
   "chainx-primitives/std",
+  "chainx-runtime-common/std",
   "xp-gateway-bitcoin/std",
   "xp-mining-staking/std",
   "xp-protocol/std",
   "xp-runtime/std",
-  "chainx-runtime-common/std",
   # ChainX pallets
   "xpallet-assets/std",
   "xpallet-assets-registrar/std",
@@ -210,6 +211,7 @@ std = [
   "pallet-ethereum/std",
   "fp-evm/std",
   "fp-rpc/std",
+  "fp-self-contained/std"
 ]
 runtime-benchmarks = [
   "hex-literal",

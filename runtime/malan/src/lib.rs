@@ -57,6 +57,7 @@ use xpallet_support::traits::MultisigAddressFor;
 mod precompile;
 use precompile::MalanPrecompiles;
 use sp_core::{H160, H256, U256};
+use sp_runtime::traits::{PostDispatchInfoOf, Dispatchable};
 #[cfg(feature = "std")]
 pub use pallet_evm::GenesisAccount;
 use pallet_evm::{
@@ -136,17 +137,15 @@ pub fn native_version() -> NativeVersion {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, codec::Encode, codec::Decode, scale_info::TypeInfo)]
+#[derive(Debug, Clone, Eq, PartialEq, codec::Encode, codec::Decode, TypeInfo)]
 pub struct BaseFilter;
 impl Contains<Call> for BaseFilter {
     fn contains(call: &Call) -> bool {
         use frame_support::dispatch::GetCallMetadata;
-
         match call {
             Call::Currencies(_) => return false, // forbidden Currencies call now
             _ => {}
         }
-
         let metadata = call.get_call_metadata();
         !XSystem::is_paused(metadata)
     }
@@ -1245,11 +1244,11 @@ pub type SignedExtra = (
     ChargeExtraFee,
 );
 /// Unchecked extrinsic type as expected by this runtime.
-pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
+pub type UncheckedExtrinsic = fp_self_contained::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 /// Extrinsic type that has already been checked.
-pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Call, SignedExtra>;
+pub type CheckedExtrinsic = fp_self_contained::CheckedExtrinsic<AccountId, Call, SignedExtra, H160>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<
     Runtime,
@@ -1283,6 +1282,53 @@ impl fp_rpc::ConvertTransaction<sp_runtime::OpaqueExtrinsic> for TransactionConv
         let encoded = extrinsic.encode();
         sp_runtime::OpaqueExtrinsic::decode(&mut &encoded[..])
             .expect("Encoded extrinsic is always valid")
+    }
+}
+
+impl fp_self_contained::SelfContainedCall for Call {
+    type SignedInfo = H160;
+
+    fn is_self_contained(&self) -> bool {
+        match self {
+            Call::Ethereum(call) => call.is_self_contained(),
+            _ => false,
+        }
+    }
+
+    fn check_self_contained(&self) -> Option<Result<Self::SignedInfo, TransactionValidityError>> {
+        match self {
+            Call::Ethereum(call) => call.check_self_contained(),
+            _ => None,
+        }
+    }
+
+    fn validate_self_contained(&self, info: &Self::SignedInfo) -> Option<TransactionValidity> {
+        match self {
+            Call::Ethereum(call) => call.validate_self_contained(info),
+            _ => None,
+        }
+    }
+
+    fn pre_dispatch_self_contained(
+        &self,
+        info: &Self::SignedInfo,
+    ) -> Option<Result<(), TransactionValidityError>> {
+        match self {
+            Call::Ethereum(call) => call.pre_dispatch_self_contained(info),
+            _ => None,
+        }
+    }
+
+    fn apply_self_contained(
+        self,
+        info: Self::SignedInfo,
+    ) -> Option<sp_runtime::DispatchResultWithInfo<PostDispatchInfoOf<Self>>> {
+        match self {
+            call @ Call::Ethereum(pallet_ethereum::Call::transact{ .. }) => Some(call.dispatch(
+                Origin::from(pallet_ethereum::RawOrigin::EthereumTransaction(info)),
+            )),
+            _ => None,
+        }
     }
 }
 
@@ -1373,7 +1419,6 @@ impl_runtime_apis! {
             Babe::next_epoch()
         }
 
-
         fn generate_key_ownership_proof(
             _slot: sp_consensus_babe::Slot,
             authority_id: sp_consensus_babe::AuthorityId,
@@ -1459,7 +1504,7 @@ impl_runtime_apis! {
             uxt: <Block as BlockT>::Extrinsic,
             len: u32,
         ) -> pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo<Balance> {
-            if let Some(extra_fee) = ChargeExtraFee::has_extra_fee(&uxt.function) {
+            if let Some(extra_fee) = ChargeExtraFee::has_extra_fee(&uxt.0.function) {
                 let base_info = TransactionPayment::query_info(uxt, len);
                 pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo {
                     partial_fee: base_info.partial_fee + extra_fee,
@@ -1479,7 +1524,7 @@ impl_runtime_apis! {
             uxt: <Block as BlockT>::Extrinsic,
             len: u32,
         ) -> xpallet_transaction_fee::FeeDetails<Balance> {
-            let maybe_extra = ChargeExtraFee::has_extra_fee(&uxt.function);
+            let maybe_extra = ChargeExtraFee::has_extra_fee(&uxt.0.function);
             let base = TransactionPayment::query_fee_details(uxt, len);
             xpallet_transaction_fee::FeeDetails::new(base, maybe_extra)
         }
@@ -1706,7 +1751,7 @@ impl_runtime_apis! {
         fn extrinsic_filter(
             xts: Vec<<Block as BlockT>::Extrinsic>,
         ) -> Vec<EthereumTransaction> {
-            xts.into_iter().filter_map(|xt| match xt.function {
+            xts.into_iter().filter_map(|xt| match xt.0.function {
                 Call::Ethereum(pallet_ethereum::Call::transact{transaction}) => Some(transaction),
                 _ => None
             }).collect::<Vec<EthereumTransaction>>()
