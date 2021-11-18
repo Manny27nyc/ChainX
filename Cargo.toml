@@ -58,6 +58,8 @@ members = [
   "xpallets/transaction-fee",
   "xpallets/transaction-fee/rpc",
   "xpallets/transaction-fee/rpc/runtime-api",
+  "xpallets/deposit",
+  "xpallets/ethereum-chain-id"
 ]
 
 # make sure dev builds with backtrace do
