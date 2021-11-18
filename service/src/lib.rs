@@ -5,8 +5,6 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use futures::prelude::*;
-
 use sc_client_api::{ExecutorProvider, RemoteBackend};
 use sc_consensus_babe::SlotProportion;
 use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
@@ -22,12 +20,26 @@ use chainx_primitives::Block;
 mod client;
 use client::RuntimeApiCollection;
 
+// EVM
+use fc_mapping_sync::{MappingSyncWorker, SyncStrategy::Normal};
+use fc_rpc::EthTask;
+use fc_rpc_core::types::FilterPool;
+use futures::StreamExt;
+use sc_client_api::BlockchainEvents;
+use sc_service::BasePath;
+use std::{collections::BTreeMap, sync::Mutex};
+
 type LightBackend = sc_service::TLightBackendWithHash<Block, sp_runtime::traits::BlakeTwo256>;
 
-type LightClient<RuntimeApi, Executor> =
-    sc_service::TLightClientWithBackend<Block, RuntimeApi, NativeElseWasmExecutor<Executor>, LightBackend>;
+type LightClient<RuntimeApi, Executor> = sc_service::TLightClientWithBackend<
+    Block,
+    RuntimeApi,
+    NativeElseWasmExecutor<Executor>,
+    LightBackend,
+>;
 
-type FullClient<RuntimeApi, Executor> = sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<Executor>>;
+type FullClient<RuntimeApi, Executor> =
+    sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<Executor>>;
 
 type FullBackend = sc_service::TFullBackend<Block>;
 
@@ -38,7 +50,35 @@ type FullGrandpaBlockImport<RuntimeApi, Executor> = sc_finality_grandpa::Grandpa
     FullSelectChain,
 >;
 
+type FrontierBlockImport<RuntimeApi, Executor> = fc_consensus::FrontierBlockImport<
+    Block,
+    FullGrandpaBlockImport<RuntimeApi, Executor>,
+    FullClient<RuntimeApi, Executor>,
+>;
+
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
+
+pub fn frontier_database_dir(config: &Configuration) -> std::path::PathBuf {
+    let config_dir = config
+        .base_path
+        .as_ref()
+        .map(|base_path| base_path.config_dir(config.chain_spec.id()))
+        .unwrap_or_else(|| {
+            BasePath::from_project("", "", "chainx").config_dir(config.chain_spec.id())
+        });
+    config_dir.join("frontier").join("db")
+}
+
+pub fn open_frontier_backend(config: &Configuration) -> Result<Arc<fc_db::Backend<Block>>, String> {
+    Ok(Arc::new(fc_db::Backend::<Block>::new(
+        &fc_db::DatabaseSettings {
+            source: fc_db::DatabaseSettingsSrc::RocksDb {
+                path: frontier_database_dir(&config),
+                cache_size: 0,
+            },
+        },
+    )?))
+}
 
 pub fn new_partial<RuntimeApi, Executor>(
     config: &Configuration,
@@ -50,15 +90,11 @@ pub fn new_partial<RuntimeApi, Executor>(
         sc_consensus::DefaultImportQueue<Block, FullClient<RuntimeApi, Executor>>,
         sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, Executor>>,
         (
-            impl Fn(
-                chainx_rpc::DenyUnsafe,
-                sc_rpc::SubscriptionTaskExecutor
-            ) -> Result<chainx_rpc::IoHandler, sc_service::Error>,
             (
                 sc_consensus_babe::BabeBlockImport<
                     Block,
                     FullClient<RuntimeApi, Executor>,
-                    FullGrandpaBlockImport<RuntimeApi, Executor>,
+                    FrontierBlockImport<RuntimeApi, Executor>,
                 >,
                 sc_finality_grandpa::LinkHalf<
                     Block,
@@ -67,7 +103,8 @@ pub fn new_partial<RuntimeApi, Executor>(
                 >,
                 sc_consensus_babe::BabeLink<Block>,
             ),
-            sc_finality_grandpa::SharedVoterState,
+            Option<FilterPool>,
+            Arc<fc_db::Backend<Block>>,
             Option<Telemetry>,
         ),
     >,
@@ -101,7 +138,7 @@ where
         sc_service::new_full_parts::<Block, RuntimeApi, NativeElseWasmExecutor<Executor>>(
             &config,
             telemetry.as_ref().map(|(_, telemetry)| telemetry.handle()),
-            executor
+            executor,
         )?;
     let client = Arc::new(client);
 
@@ -128,9 +165,18 @@ where
     )?;
     let justification_import = grandpa_block_import.clone();
 
+    let filter_pool: Option<FilterPool> = Some(Arc::new(Mutex::new(BTreeMap::new())));
+    let frontier_backend = open_frontier_backend(config)?;
+
+    let frontier_block_import = FrontierBlockImport::new(
+        grandpa_block_import,
+        client.clone(),
+        frontier_backend.clone(),
+    );
+
     let (block_import, babe_link) = sc_consensus_babe::block_import(
         sc_consensus_babe::Config::get_or_compute(&*client)?,
-        grandpa_block_import,
+        frontier_block_import,
         client.clone(),
     )?;
 
@@ -163,54 +209,6 @@ where
 
     let import_setup = (block_import, grandpa_link, babe_link);
 
-    let (rpc_extensions_builder, rpc_setup) = {
-        let (_, grandpa_link, babe_link) = &import_setup;
-
-        let justification_stream = grandpa_link.justification_stream();
-        let shared_authority_set = grandpa_link.shared_authority_set().clone();
-        let shared_voter_state = sc_finality_grandpa::SharedVoterState::empty();
-        let rpc_setup = shared_voter_state.clone();
-
-        let finality_proof_provider = GrandpaFinalityProofProvider::new_for_service(
-            backend.clone(),
-            Some(shared_authority_set.clone()),
-        );
-
-        let babe_config = babe_link.config().clone();
-        let shared_epoch_changes = babe_link.epoch_changes().clone();
-
-        let client = client.clone();
-        let pool = transaction_pool.clone();
-        let select_chain = select_chain.clone();
-        let keystore = keystore_container.sync_keystore();
-        let chain_spec = config.chain_spec.cloned_box();
-
-        let rpc_extensions_builder = Box::new(move |deny_unsafe, subscription_executor| {
-            let deps = chainx_rpc::FullDeps {
-                client: client.clone(),
-                pool: pool.clone(),
-                select_chain: select_chain.clone(),
-                chain_spec: chain_spec.cloned_box(),
-                deny_unsafe,
-                babe: chainx_rpc::BabeDeps {
-                    babe_config: babe_config.clone(),
-                    shared_epoch_changes: shared_epoch_changes.clone(),
-                    keystore: keystore.clone(),
-                },
-                grandpa: chainx_rpc::GrandpaDeps {
-                    shared_voter_state: shared_voter_state.clone(),
-                    shared_authority_set: shared_authority_set.clone(),
-                    justification_stream: justification_stream.clone(),
-                    subscription_executor,
-                    finality_provider: finality_proof_provider.clone(),
-                },
-            };
-
-            chainx_rpc::create_full(deps).map_err(Into::into)
-        });
-
-        (rpc_extensions_builder, rpc_setup)
-    };
     Ok(sc_service::PartialComponents {
         client,
         backend,
@@ -219,20 +217,23 @@ where
         select_chain,
         import_queue,
         transaction_pool,
-        other: (rpc_extensions_builder, import_setup, rpc_setup, telemetry),
+        other: (import_setup, filter_pool, frontier_backend, telemetry),
     })
 }
 
 pub struct NewFullBase<RuntimeApi, Executor>
 where
-    RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>> + Send + Sync + 'static,
-    RuntimeApi::RuntimeApi: RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
+    RuntimeApi:
+        ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>> + Send + Sync + 'static,
+    RuntimeApi::RuntimeApi:
+        RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
     Executor: NativeExecutionDispatch + 'static,
 {
     pub task_manager: TaskManager,
     pub client: Arc<FullClient<RuntimeApi, Executor>>,
     pub network: Arc<NetworkService<Block, <Block as BlockT>::Hash>>,
-    pub transaction_pool: Arc<sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, Executor>>>,
+    pub transaction_pool:
+        Arc<sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, Executor>>>,
 }
 
 /// Creates a full service from the configuration.
@@ -254,10 +255,14 @@ where
         keystore_container,
         select_chain,
         transaction_pool,
-        other: (rpc_extensions_builder, import_setup, rpc_setup, mut telemetry),
+        other: (
+            import_setup,
+            filter_pool,
+            frontier_backend,
+            mut telemetry
+        ),
     } = new_partial(&config)?;
 
-    let shared_voter_state = rpc_setup;
     let auth_disc_publish_non_global_ips = config.network.allow_non_globals_in_dht;
 
     config
@@ -297,10 +302,79 @@ where
     let name = config.network.node_name.clone();
     let enable_grandpa = !config.disable_grandpa;
     let prometheus_registry = config.prometheus_registry().cloned();
+    let subscription_task_executor =
+        sc_rpc::SubscriptionTaskExecutor::new(task_manager.spawn_handle());
+
+    let (rpc_extensions_builder, shared_voter_state) = {
+        let (_, grandpa_link, babe_link) = &import_setup;
+
+        let justification_stream = grandpa_link.justification_stream();
+        let shared_authority_set = grandpa_link.shared_authority_set().clone();
+        let shared_voter_state = sc_finality_grandpa::SharedVoterState::empty();
+        let rpc_setup = shared_voter_state.clone();
+
+        let finality_proof_provider = GrandpaFinalityProofProvider::new_for_service(
+            backend.clone(),
+            Some(shared_authority_set.clone()),
+        );
+
+        let babe_config = babe_link.config().clone();
+        let shared_epoch_changes = babe_link.epoch_changes().clone();
+
+        let client = client.clone();
+        let pool = transaction_pool.clone();
+        let select_chain = select_chain.clone();
+        let keystore = keystore_container.sync_keystore();
+        let chain_spec = config.chain_spec.cloned_box();
+        let network = network.clone();
+        let filter_pool = filter_pool.clone();
+        let frontier_backend = frontier_backend.clone();
+        let is_authority = false;
+        let enable_dev_signer = true;
+        let max_past_logs = 10000;
+
+        let rpc_extensions_builder = move |deny_unsafe, subscription_executor| {
+            let deps = chainx_rpc::FullDeps {
+                client: client.clone(),
+                pool: pool.clone(),
+                select_chain: select_chain.clone(),
+                chain_spec: chain_spec.cloned_box(),
+                deny_unsafe,
+                babe: chainx_rpc::BabeDeps {
+                    babe_config: babe_config.clone(),
+                    shared_epoch_changes: shared_epoch_changes.clone(),
+                    keystore: keystore.clone(),
+                },
+                grandpa: chainx_rpc::GrandpaDeps {
+                    shared_voter_state: shared_voter_state.clone(),
+                    shared_authority_set: shared_authority_set.clone(),
+                    justification_stream: justification_stream.clone(),
+                    subscription_executor,
+                    finality_provider: finality_proof_provider.clone(),
+                },
+                eth: chainx_rpc::EthDeps {
+                    graph: pool.pool().clone(),
+                    is_authority,
+                    enable_dev_signer,
+                    network: network.clone(),
+                    filter_pool: filter_pool.clone(),
+                    max_past_logs,
+                    backend: frontier_backend.clone(),
+                },
+            };
+
+            chainx_rpc::create_full(
+                deps,
+                subscription_task_executor.clone()
+            ).map_err(Into::into)
+        };
+
+        (rpc_extensions_builder, rpc_setup)
+    };
 
     let _rpc_handlers = sc_service::spawn_tasks(sc_service::SpawnTasksParams {
         config,
-        backend,
+        backend: backend.clone(),
         client: client.clone(),
         keystore: keystore_container.sync_keystore(),
         network: network.clone(),
@@ -312,6 +386,34 @@ where
         system_rpc_tx,
         telemetry: telemetry.as_mut(),
     })?;
+
+    task_manager.spawn_essential_handle().spawn(
+        "frontier-mapping-sync-worker",
+        MappingSyncWorker::new(
+            client.import_notification_stream(),
+            Duration::new(6, 0),
+            client.clone(),
+            backend.clone(),
+            frontier_backend.clone(),
+            Normal
+        )
+            .for_each(|()| futures::future::ready(())),
+    );
+
+    // Spawn Frontier EthFilterApi maintenance task.
+    if let Some(filter_pool) = filter_pool.clone() {
+        // Each filter is allowed to stay in the pool for 100 blocks.
+        const FILTER_RETAIN_THRESHOLD: u64 = 100;
+        task_manager.spawn_essential_handle().spawn(
+            "frontier-filter-pool",
+            EthTask::filter_pool_task(Arc::clone(&client), filter_pool, FILTER_RETAIN_THRESHOLD),
+        );
+    }
+
+    task_manager.spawn_essential_handle().spawn(
+        "frontier-schema-cache-task",
+        EthTask::ethereum_schema_cache_task(Arc::clone(&client), Arc::clone(&frontier_backend)),
+    );
 
     let (block_import, grandpa_link, babe_link) = import_setup;
 
@@ -452,7 +554,7 @@ where
         task_manager,
         client,
         network,
-        transaction_pool
+        transaction_pool,
     })
 }
 
@@ -465,15 +567,16 @@ where
         RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
     Executor: NativeExecutionDispatch + 'static,
 {
-    new_full_base(config)
-        .map(|base: NewFullBase<RuntimeApi, Executor>| base.task_manager)
+    new_full_base(config).map(|base: NewFullBase<RuntimeApi, Executor>| base.task_manager)
 }
 
 pub struct NewLightBase<RuntimeApi, Executor>
-    where
-        RuntimeApi: ConstructRuntimeApi<Block, LightClient<RuntimeApi, Executor>> + Send + Sync + 'static,
-        RuntimeApi::RuntimeApi: RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<LightBackend, Block>>,
-        Executor: NativeExecutionDispatch + 'static,
+where
+    RuntimeApi:
+        ConstructRuntimeApi<Block, LightClient<RuntimeApi, Executor>> + Send + Sync + 'static,
+    RuntimeApi::RuntimeApi:
+        RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<LightBackend, Block>>,
+    Executor: NativeExecutionDispatch + 'static,
 {
     pub task_manager: TaskManager,
     pub rpc_handlers: RpcHandlers,
@@ -483,17 +586,18 @@ pub struct NewLightBase<RuntimeApi, Executor>
         sc_transaction_pool::LightPool<
             Block,
             LightClient<RuntimeApi, Executor>,
-            sc_network::config::OnDemand<Block>
-        >>,
+            sc_network::config::OnDemand<Block>,
+        >,
+    >,
 }
 
 /// Builds a new service for a light client.
-pub fn new_light_base<RuntimeApi, Executor>(mut config: Configuration) -> Result<
-    NewLightBase<RuntimeApi, Executor>,
-    ServiceError,
->
+pub fn new_light_base<RuntimeApi, Executor>(
+    mut config: Configuration,
+) -> Result<NewLightBase<RuntimeApi, Executor>, ServiceError>
 where
-    RuntimeApi: 'static + Send + Sync + ConstructRuntimeApi<Block, LightClient<RuntimeApi, Executor>>,
+    RuntimeApi:
+        'static + Send + Sync + ConstructRuntimeApi<Block, LightClient<RuntimeApi, Executor>>,
     <RuntimeApi as ConstructRuntimeApi<Block, LightClient<RuntimeApi, Executor>>>::RuntimeApi:
         RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<LightBackend, Block>>,
     Executor: NativeExecutionDispatch + 'static,
@@ -519,7 +623,7 @@ where
         sc_service::new_light_parts::<Block, RuntimeApi, NativeElseWasmExecutor<Executor>>(
             &config,
             telemetry.as_ref().map(|(_, telemetry)| telemetry.handle()),
-            executor
+            executor,
         )?;
 
     let mut telemetry = telemetry.map(|(worker, telemetry)| {
@@ -650,26 +754,26 @@ where
 
     network_starter.start_network();
 
-    Ok(NewLightBase{
+    Ok(NewLightBase {
         task_manager,
         rpc_handlers,
         client,
         network,
-        transaction_pool
+        transaction_pool,
     })
 }
 
 /// Builds a new service for a light client.
 pub fn new_light<RuntimeApi, Executor>(config: Configuration) -> Result<TaskManager, ServiceError>
-    where
-        RuntimeApi: 'static + Send + Sync + ConstructRuntimeApi<Block, LightClient<RuntimeApi, Executor>>,
-        <RuntimeApi as ConstructRuntimeApi<Block, LightClient<RuntimeApi, Executor>>>::RuntimeApi:
+where
+    RuntimeApi:
+        'static + Send + Sync + ConstructRuntimeApi<Block, LightClient<RuntimeApi, Executor>>,
+    <RuntimeApi as ConstructRuntimeApi<Block, LightClient<RuntimeApi, Executor>>>::RuntimeApi:
         RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<LightBackend, Block>>,
-        Executor: NativeExecutionDispatch + 'static,
+    Executor: NativeExecutionDispatch + 'static,
 {
     new_light_base(config).map(|base: NewLightBase<RuntimeApi, Executor>| base.task_manager)
 }
-
 
 /// Can be called for a `Configuration` to check if it is a configuration for the `ChainX` network.
 pub trait IdentifyVariant {

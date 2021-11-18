@@ -40,6 +40,7 @@ pub trait RuntimeApiCollection:
         MiningWeight,
         BlockNumber,
     > + xpallet_transaction_fee_rpc_runtime_api::XTransactionFeeApi<Block, Balance>
+    + fp_rpc::EthereumRuntimeRPCApi<Block>
 where
     <Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
@@ -78,7 +79,8 @@ where
             Balance,
             MiningWeight,
             BlockNumber,
-        > + xpallet_transaction_fee_rpc_runtime_api::XTransactionFeeApi<Block, Balance>,
+        > + xpallet_transaction_fee_rpc_runtime_api::XTransactionFeeApi<Block, Balance>
+        + fp_rpc::EthereumRuntimeRPCApi<Block>,
     <Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 }
