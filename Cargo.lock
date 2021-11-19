@@ -1510,6 +1510,7 @@ version = "2.0.9"
 dependencies = [
  "chainx-primitives",
  "chainx-runtime-common",
+ "ethabi",
  "fp-evm",
  "fp-rpc",
  "fp-self-contained",
@@ -1818,6 +1819,20 @@ checksum = "aa68f1b12764fab894d2755d2518754e71b4fd80ecfb822714a1206c2aab39bf"
 dependencies = [
  "cc",
  "libc",
+]
+
+[[package]]
+name = "ethabi"
+version = "15.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f76ef192b63e8a44b3d08832acebbb984c3fba154b5c26f70037c860202a0d4b"
+dependencies = [
+ "anyhow",
+ "ethereum-types",
+ "hex",
+ "sha3 0.9.1",
+ "thiserror",
+ "uint",
 ]
 
 [[package]]
