@@ -193,7 +193,6 @@ impl xp_mining_common::RewardPotAccountFor<AccountId, AccountId>
 
 parameter_types! {
     pub const SessionDuration: BlockNumber = 50;
-    pub const MigrationSessionOffset: u32 = 500;
     pub const MinimumReferralId: u32 = 2;
     pub const MaximumReferralId: u32 = 12;
 }
@@ -202,7 +201,6 @@ impl Config for Test {
     type Currency = Balances;
     type Event = Event;
     type AssetMining = ();
-    type MigrationSessionOffset = MigrationSessionOffset;
     type SessionDuration = SessionDuration;
     type MinimumReferralId = MinimumReferralId;
     type MaximumReferralId = MaximumReferralId;

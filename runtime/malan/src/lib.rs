@@ -1028,9 +1028,6 @@ impl xpallet_support::traits::TreasuryAccount<AccountId> for SimpleTreasuryAccou
 }
 
 parameter_types! {
-    // Total issuance is 7723350PCX by the end of ChainX 1.0.
-    // 210000 - (7723350 / 50) = 55533
-    pub const MigrationSessionOffset: SessionIndex = 55533;
     pub const MinimumReferralId: u32 = 2;
     pub const MaximumReferralId: u32 = 12;
 }
@@ -1038,7 +1035,6 @@ parameter_types! {
 impl xpallet_mining_staking::Config for Runtime {
     type Event = Event;
     type Currency = Balances;
-    type MigrationSessionOffset = MigrationSessionOffset;
     type SessionDuration = SessionDuration;
     type MinimumReferralId = MinimumReferralId;
     type MaximumReferralId = MaximumReferralId;

@@ -87,11 +87,6 @@ pub mod pallet {
         /// Interface for interacting with a session module.
         type SessionInterface: self::SessionInterface<Self::AccountId>;
 
-        /// The number of unfinished sessions in the first halving epoch.
-        ///
-        /// When the ChainX 2.0 migration happens, the first halving epoch is not over yet.
-        type MigrationSessionOffset: Get<SessionIndex>;
-
         /// The minimum byte length of validator referral id.
         #[pallet::constant]
         type MinimumReferralId: Get<u32>;

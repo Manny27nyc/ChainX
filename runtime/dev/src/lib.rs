@@ -1035,8 +1035,6 @@ impl xpallet_support::traits::TreasuryAccount<AccountId> for SimpleTreasuryAccou
 }
 
 parameter_types! {
-    /// FIXME: replace this when the migration offset is determinated.
-    pub const MigrationSessionOffset: SessionIndex = 500;
     pub const MinimumReferralId: u32 = 2;
     pub const MaximumReferralId: u32 = 12;
 }
@@ -1044,7 +1042,6 @@ parameter_types! {
 impl xpallet_mining_staking::Config for Runtime {
     type Event = Event;
     type Currency = Balances;
-    type MigrationSessionOffset = MigrationSessionOffset;
     type SessionDuration = SessionDuration;
     type MinimumReferralId = MinimumReferralId;
     type MaximumReferralId = MaximumReferralId;
