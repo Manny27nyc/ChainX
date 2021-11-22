@@ -1,6 +1,6 @@
 [package]
 name = "xpallet-gateway-common"
-version = "2.0.9"
+version = "3.0.0"
 authors = ["The ChainX Authors"]
 edition = "2018"
 
@@ -22,6 +22,7 @@ frame-system = { git = "https://github.com/paritytech/substrate", branch = "polk
 
 # ChainX primitives
 chainx-primitives = { path = "../../../primitives", default-features = false }
+# xp-logging = { path = "../../../primitives/logging", default-features = false }
 xp-protocol = { path = "../../../primitives/protocol", default-features = false }
 xp-rpc = { path = "../../../primitives/rpc", optional = true }
 xp-runtime = { path = "../../../primitives/runtime", default-features = false }
@@ -33,7 +34,7 @@ xpallet-gateway-records = { path = "../records", default-features = false }
 xpallet-support = { path = "../../support", default-features = false }
 
 # light-bitcoin
-light-bitcoin = { git = "https://github.com/chainx-org/light-bitcoin", branch = "scale-info", default-features = false }
+light-bitcoin = { git = "https://github.com/chainx-org/light-bitcoin", branch = "taproot", default-features = false }
 
 [dev-dependencies]
 lazy_static = "1.4"
@@ -42,7 +43,7 @@ sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.11" }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.11" }
 xp-gateway-bitcoin = { path = "../../../primitives/gateway/bitcoin" }
-xpallet-gateway-bitcoin = { path = "../bitcoin/v1" }
+xpallet-gateway-bitcoin = { path = "../bitcoin" }
 
 [features]
 default = ["std"]

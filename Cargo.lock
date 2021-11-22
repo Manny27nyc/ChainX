@@ -415,6 +415,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 
 [[package]]
+name = "bech32"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf9ff0bbfd639f15c74af777d81383cf53efb7c93613f6cab67c6c11e05bbf8b"
+
+[[package]]
 name = "bincode"
 version = "1.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -440,6 +446,23 @@ dependencies = [
  "regex",
  "rustc-hash",
  "shlex",
+]
+
+[[package]]
+name = "bitcoin-bech32"
+version = "0.12.1"
+source = "git+https://github.com/chainx-org/rust-bech32-bitcoin?branch=master#1de465d410c8f83e16409e71303b3389a82a3e50"
+dependencies = [
+ "bech32",
+]
+
+[[package]]
+name = "bitcoin_hashes"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "006cc91e1a1d99819bc5b8214be3555c1f0611b169f527a1fdc54ed1f2b745b0"
+dependencies = [
+ "core2",
 ]
 
 [[package]]
@@ -1177,6 +1200,15 @@ name = "core-foundation-sys"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5827cebf4670468b8772dd191856768aedcb1b0278a04f989f7766351917b9dc"
+
+[[package]]
+name = "core2"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2cf12d2dad3ed124aa116f59561428478993d69ab81ae4d30e5349c9c5b5a5f6"
+dependencies = [
+ "memchr",
+]
 
 [[package]]
 name = "cpp_demangle"
@@ -3930,11 +3962,12 @@ dependencies = [
 [[package]]
 name = "light-bitcoin"
 version = "0.2.0"
-source = "git+https://github.com/chainx-org/light-bitcoin?branch=scale-info#f778727717961a9c5ac79dadd47756d380022177"
+source = "git+https://github.com/chainx-org/light-bitcoin?branch=taproot#db60acb0829f3f6d628114056d76e299b0f3a9a7"
 dependencies = [
  "light-bitcoin-chain",
  "light-bitcoin-crypto",
  "light-bitcoin-keys",
+ "light-bitcoin-mast",
  "light-bitcoin-merkle",
  "light-bitcoin-primitives",
  "light-bitcoin-script",
@@ -3944,7 +3977,7 @@ dependencies = [
 [[package]]
 name = "light-bitcoin-chain"
 version = "0.2.0"
-source = "git+https://github.com/chainx-org/light-bitcoin?branch=scale-info#f778727717961a9c5ac79dadd47756d380022177"
+source = "git+https://github.com/chainx-org/light-bitcoin?branch=taproot#db60acb0829f3f6d628114056d76e299b0f3a9a7"
 dependencies = [
  "hex",
  "light-bitcoin-crypto",
@@ -3958,7 +3991,7 @@ dependencies = [
 [[package]]
 name = "light-bitcoin-crypto"
 version = "0.2.0"
-source = "git+https://github.com/chainx-org/light-bitcoin?branch=scale-info#f778727717961a9c5ac79dadd47756d380022177"
+source = "git+https://github.com/chainx-org/light-bitcoin?branch=taproot#db60acb0829f3f6d628114056d76e299b0f3a9a7"
 dependencies = [
  "digest 0.9.0",
  "light-bitcoin-primitives",
@@ -3971,23 +4004,47 @@ dependencies = [
 [[package]]
 name = "light-bitcoin-keys"
 version = "0.2.0"
-source = "git+https://github.com/chainx-org/light-bitcoin?branch=scale-info#f778727717961a9c5ac79dadd47756d380022177"
+source = "git+https://github.com/chainx-org/light-bitcoin?branch=taproot#db60acb0829f3f6d628114056d76e299b0f3a9a7"
 dependencies = [
+ "arrayref",
+ "bitcoin-bech32",
  "bs58 0.4.0",
+ "digest 0.9.0",
  "hex",
- "libsecp256k1 0.6.0",
+ "libsecp256k1 0.3.5",
  "light-bitcoin-crypto",
  "light-bitcoin-primitives",
  "light-bitcoin-serialization",
+ "musig2",
  "parity-scale-codec",
  "scale-info",
  "serde",
+ "sha2 0.9.8",
+]
+
+[[package]]
+name = "light-bitcoin-mast"
+version = "0.2.0"
+source = "git+https://github.com/chainx-org/light-bitcoin?branch=taproot#db60acb0829f3f6d628114056d76e299b0f3a9a7"
+dependencies = [
+ "arrayref",
+ "bitcoin-bech32",
+ "bitcoin_hashes",
+ "core2",
+ "digest 0.9.0",
+ "hex",
+ "light-bitcoin-keys",
+ "light-bitcoin-script",
+ "light-bitcoin-serialization",
+ "musig2",
+ "rayon",
+ "sha2 0.9.8",
 ]
 
 [[package]]
 name = "light-bitcoin-merkle"
 version = "0.2.0"
-source = "git+https://github.com/chainx-org/light-bitcoin?branch=scale-info#f778727717961a9c5ac79dadd47756d380022177"
+source = "git+https://github.com/chainx-org/light-bitcoin?branch=taproot#db60acb0829f3f6d628114056d76e299b0f3a9a7"
 dependencies = [
  "light-bitcoin-chain",
  "light-bitcoin-primitives",
@@ -3999,7 +4056,7 @@ dependencies = [
 [[package]]
 name = "light-bitcoin-primitives"
 version = "0.2.0"
-source = "git+https://github.com/chainx-org/light-bitcoin?branch=scale-info#f778727717961a9c5ac79dadd47756d380022177"
+source = "git+https://github.com/chainx-org/light-bitcoin?branch=taproot#db60acb0829f3f6d628114056d76e299b0f3a9a7"
 dependencies = [
  "byteorder",
  "fixed-hash",
@@ -4014,20 +4071,23 @@ dependencies = [
 [[package]]
 name = "light-bitcoin-script"
 version = "0.2.0"
-source = "git+https://github.com/chainx-org/light-bitcoin?branch=scale-info#f778727717961a9c5ac79dadd47756d380022177"
+source = "git+https://github.com/chainx-org/light-bitcoin?branch=taproot#db60acb0829f3f6d628114056d76e299b0f3a9a7"
 dependencies = [
  "hex",
+ "libsecp256k1 0.3.5",
  "light-bitcoin-chain",
  "light-bitcoin-crypto",
  "light-bitcoin-keys",
  "light-bitcoin-primitives",
  "light-bitcoin-serialization",
+ "scale-info",
+ "sha2 0.9.8",
 ]
 
 [[package]]
 name = "light-bitcoin-serialization"
 version = "0.2.0"
-source = "git+https://github.com/chainx-org/light-bitcoin?branch=scale-info#f778727717961a9c5ac79dadd47756d380022177"
+source = "git+https://github.com/chainx-org/light-bitcoin?branch=taproot#db60acb0829f3f6d628114056d76e299b0f3a9a7"
 dependencies = [
  "light-bitcoin-primitives",
  "light-bitcoin-serialization-derive",
@@ -4036,7 +4096,7 @@ dependencies = [
 [[package]]
 name = "light-bitcoin-serialization-derive"
 version = "0.2.0"
-source = "git+https://github.com/chainx-org/light-bitcoin?branch=scale-info#f778727717961a9c5ac79dadd47756d380022177"
+source = "git+https://github.com/chainx-org/light-bitcoin?branch=taproot#db60acb0829f3f6d628114056d76e299b0f3a9a7"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4554,6 +4614,22 @@ dependencies = [
  "pin-project 1.0.8",
  "smallvec",
  "unsigned-varint 0.7.1",
+]
+
+[[package]]
+name = "musig2"
+version = "0.1.0"
+source = "git+https://github.com/chainx-org/Musig2?branch=lib#c52503eab20d3c6215335659e5f4861efbca56f5"
+dependencies = [
+ "arrayref",
+ "digest 0.9.0",
+ "hex",
+ "libsecp256k1 0.3.5",
+ "log",
+ "rand 0.8.4",
+ "rand_core 0.6.3",
+ "serde",
+ "sha2 0.9.8",
 ]
 
 [[package]]
@@ -10022,7 +10098,7 @@ dependencies = [
 
 [[package]]
 name = "xpallet-gateway-bitcoin"
-version = "2.0.9"
+version = "3.0.0"
 dependencies = [
  "bs58 0.3.1",
  "chainx-primitives",
@@ -10059,7 +10135,7 @@ dependencies = [
 
 [[package]]
 name = "xpallet-gateway-common"
-version = "2.0.9"
+version = "3.0.0"
 dependencies = [
  "chainx-primitives",
  "frame-benchmarking",
@@ -10090,7 +10166,7 @@ dependencies = [
 
 [[package]]
 name = "xpallet-gateway-common-rpc"
-version = "2.0.9"
+version = "3.0.0"
 dependencies = [
  "hex",
  "jsonrpc-core",
@@ -10106,7 +10182,7 @@ dependencies = [
 
 [[package]]
 name = "xpallet-gateway-common-rpc-runtime-api"
-version = "2.0.9"
+version = "3.0.0"
 dependencies = [
  "chainx-primitives",
  "parity-scale-codec",
@@ -10120,7 +10196,7 @@ dependencies = [
 
 [[package]]
 name = "xpallet-gateway-records"
-version = "2.0.9"
+version = "3.0.0"
 dependencies = [
  "chainx-primitives",
  "frame-benchmarking",
@@ -10144,7 +10220,7 @@ dependencies = [
 
 [[package]]
 name = "xpallet-gateway-records-rpc"
-version = "2.0.9"
+version = "3.0.0"
 dependencies = [
  "jsonrpc-core",
  "jsonrpc-core-client",
@@ -10160,7 +10236,7 @@ dependencies = [
 
 [[package]]
 name = "xpallet-gateway-records-rpc-runtime-api"
-version = "2.0.9"
+version = "3.0.0"
 dependencies = [
  "chainx-primitives",
  "parity-scale-codec",

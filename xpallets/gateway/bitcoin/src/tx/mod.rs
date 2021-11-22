@@ -1,4 +1,6 @@
-// Copyright 2019-2020 ChainX Project Authors. Licensed under GPL-3.0.
+// Copyright 2019-2021 ChainX Project Authors. Licensed under GPL-3.0.
+extern crate alloc;
+use alloc::string::ToString;
 
 mod secp256k1_verifier;
 pub mod validator;
@@ -12,7 +14,7 @@ use sp_std::prelude::*;
 
 use light_bitcoin::{
     chain::Transaction,
-    keys::{Address, DisplayLayout, Network},
+    keys::{Address, Network},
     primitives::{hash_rev, H256},
 };
 
@@ -61,7 +63,7 @@ pub fn process_tx<T: Config>(
 fn deposit<T: Config>(txid: H256, deposit_info: BtcDepositInfo<T::AccountId>) -> BtcTxResult {
     let account_info = match (deposit_info.op_return, deposit_info.input_addr) {
         (Some((account, referral)), Some(input_addr)) => {
-            let input_addr = addr2vecu8(&input_addr);
+            let input_addr = input_addr.to_string().into_bytes();
             // remove old unbinding deposit info
             remove_pending_deposit::<T>(&input_addr, &account);
             // update or override binding info
@@ -80,7 +82,7 @@ fn deposit<T: Config>(txid: H256, deposit_info: BtcDepositInfo<T::AccountId>) ->
         }
         (None, Some(input_addr)) => {
             // no opreturn but have input addr, use input addr to get accountid
-            let addr_bytes = addr2vecu8(&input_addr);
+            let addr_bytes = input_addr.to_string().into_bytes();
             match T::AddressBinding::address(Pallet::<T>::chain(), addr_bytes) {
                 Some(account) => AccountInfo::Account((account, None)),
                 None => AccountInfo::Address(input_addr),
@@ -123,7 +125,7 @@ fn deposit<T: Config>(txid: H256, deposit_info: BtcDepositInfo<T::AccountId>) ->
                 target: "runtime::bitcoin",
                 "[deposit] Deposit tx ({:?}) into pending, addr:{:?}, balance:{}",
                 hash_rev(txid),
-                try_str(addr2vecu8(&input_addr)),
+                try_str(input_addr.to_string().into_bytes()),
                 deposit_info.deposit_value
             );
             BtcTxResult::Success
@@ -172,8 +174,8 @@ pub fn remove_pending_deposit<T: Config>(input_address: &BtcAddress, who: &T::Ac
     }
 }
 
-fn insert_pending_deposit<T: Config>(input_address: &Address, txid: H256, balance: u64) {
-    let addr_bytes = addr2vecu8(input_address);
+fn insert_pending_deposit<T: Config>(input_addr: &Address, txid: H256, balance: u64) {
+    let addr_bytes = input_addr.to_string().into_bytes();
 
     let cache = BtcDepositCache { txid, balance };
 
@@ -293,9 +295,4 @@ pub fn ensure_identical<T: Config>(tx1: &Transaction, tx2: &Transaction) -> Disp
         "The transaction text does not match the original text to be signed",
     );
     Err(Error::<T>::MismatchedTx.into())
-}
-
-#[inline]
-pub fn addr2vecu8(addr: &Address) -> Vec<u8> {
-    bs58::encode(&*addr.layout()).into_vec()
 }
