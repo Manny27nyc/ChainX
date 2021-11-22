@@ -220,7 +220,6 @@ impl pallet_session::Config for Test {
 
 pub struct DummyTreasuryAccount;
 
-pub(crate) const VESTING_ACCOUNT: AccountId = 10_000;
 pub(crate) const TREASURY_ACCOUNT: AccountId = 100_000;
 
 impl xpallet_support::traits::TreasuryAccount<AccountId> for DummyTreasuryAccount {
@@ -353,7 +352,6 @@ impl ExtBuilder {
             ],
             validator_count: 6,
             sessions_per_era: 3,
-            vesting_account: VESTING_ACCOUNT,
             glob_dist_ratio: (12, 88),
             mining_ratio: (10, 90),
             ..Default::default()
@@ -384,6 +382,10 @@ impl ExtBuilder {
 
         let mut ext = sp_io::TestExternalities::from(storage);
         ext.execute_with(|| {
+            let _ = t_register(1, 10);
+            let _ = t_register(2, 20);
+            let _ = t_register(3, 30);
+            let _ = t_register(4, 40);
             let validators = Session::validators();
             SESSION.with(|x| *x.borrow_mut() = (validators.clone(), HashSet::new()));
         });
@@ -402,4 +404,14 @@ impl ExtBuilder {
         let mut ext = self.build();
         ext.execute_with(test);
     }
+}
+
+pub fn t_register(who: AccountId, initial_bond: Balance) -> DispatchResult {
+    let mut referral_id = who.to_string().as_bytes().to_vec();
+
+    if referral_id.len() < 2 {
+        referral_id.extend_from_slice(&[1, 1, 1, who as u8]);
+    }
+
+    XStaking::register(Origin::signed(who), referral_id, initial_bond)
 }
