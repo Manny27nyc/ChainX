@@ -70,8 +70,8 @@ pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Pu
 
 /// Helper function to generate an account ID from seed
 pub fn get_account_id_from_seed<TPublic: Public>(seed: &str) -> AccountId
-where
-    AccountPublic: From<<TPublic::Pair as Pair>::Public>,
+    where
+        AccountPublic: From<<TPublic::Pair as Pair>::Public>,
 {
     AccountPublic::from(get_from_seed::<TPublic>(seed)).into_account()
 }
@@ -126,9 +126,9 @@ fn as_properties(network: NetworkType) -> Properties {
         "tokenDecimals": PCX_DECIMALS,
         "tokenSymbol": "PCX"
     })
-    .as_object()
-    .expect("network properties generation can not fail; qed")
-    .to_owned()
+        .as_object()
+        .expect("network properties generation can not fail; qed")
+        .to_owned()
 }
 
 pub fn development_config() -> Result<DevChainSpec, String> {
@@ -213,7 +213,7 @@ pub fn benchmarks_config() -> Result<DevChainSpec, String> {
             ],
             btc_genesis_params(include_str!("res/btc_genesis_params_benchmarks.json")),
             crate::genesis::bitcoin::benchmarks_trustees(),
-            vec![]
+            vec![],
         )
     };
     Ok(DevChainSpec::from_genesis(
@@ -461,7 +461,8 @@ fn build_genesis(
             genesis_hash: bitcoin.hash(),
             genesis_info: (bitcoin.header(), bitcoin.height),
             params_info: BtcParams::new(
-                486604799,            // max_bits
+                // 545259519 for signet and regtest; 486604799 for mainnet
+                545259519,            // max_bits
                 2 * 60 * 60,          // block_max_future
                 2 * 7 * 24 * 60 * 60, // target_timespan_seconds
                 10 * 60,              // target_spacing_seconds
