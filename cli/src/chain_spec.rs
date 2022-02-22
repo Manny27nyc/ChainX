@@ -235,9 +235,7 @@ macro_rules! build_genesis {
 
         let mut config = $runtime::GenesisConfig::default();
 
-        if stringify!($runtime) == "dev" {
-            config.sudo = $runtime::SudoConfig { key: $root_key };
-        };
+        config.sudo = $runtime::SudoConfig { key: $root_key };
 
         config.system = $runtime::SystemConfig {
             code: $wasm_binary.to_vec(),
