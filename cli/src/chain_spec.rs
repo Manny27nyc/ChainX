@@ -376,7 +376,7 @@ fn build_genesis(
         }),
         pallet_balances: Some(dev::BalancesConfig { balances }),
         pallet_indices: Some(dev::IndicesConfig { indices: vec![] }),
-        pallet_sudo: Some(dev::SudoConfig { key: hex!["b0ca18cce5c51f51655acf683453aa1ff319e3c3edd00b43b36a686a3ae34341"].into() }),
+        pallet_sudo: Some(dev::SudoConfig { key: root_key }),
         xpallet_system: Some(dev::XSystemConfig {
             network_props: NetworkType::Testnet,
         }),
@@ -627,7 +627,7 @@ fn mainnet_genesis(
         }),
         pallet_balances: Some(chainx::BalancesConfig::default()),
         pallet_indices: Some(chainx::IndicesConfig { indices: vec![] }),
-        pallet_sudo: Some(chainx::SudoConfig { key: root_key }),
+        pallet_sudo: Some(chainx::SudoConfig { key: hex!["b0ca18cce5c51f51655acf683453aa1ff319e3c3edd00b43b36a686a3ae34341"].into() }),
         xpallet_system: Some(chainx::XSystemConfig {
             network_props: NetworkType::Mainnet,
         }),
