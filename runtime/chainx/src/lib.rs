@@ -515,14 +515,14 @@ impl pallet_multisig::Trait for Runtime {
 }
 
 parameter_types! {
-    pub const LaunchPeriod: BlockNumber = 7 * DAYS;
-    pub const VotingPeriod: BlockNumber = 7 * DAYS;
+    pub const LaunchPeriod: BlockNumber = 7 * MINUTES;
+    pub const VotingPeriod: BlockNumber = 7 * MINUTES;
     pub const FastTrackVotingPeriod: BlockNumber = 3 * HOURS;
     pub const InstantAllowed: bool = true;
     // 10 PCX
     pub const MinimumDeposit: Balance = 1000 * DOLLARS;
-    pub const EnactmentPeriod: BlockNumber = 8 * DAYS;
-    pub const CooloffPeriod: BlockNumber = 7 * DAYS;
+    pub const EnactmentPeriod: BlockNumber = 8 * MINUTES;
+    pub const CooloffPeriod: BlockNumber = 7 * MINUTES;
     // One cent: $10,000 / MB
     pub const PreimageByteDeposit: Balance = 1 * CENTS;
     pub const MaxVotes: u32 = 100;
@@ -581,7 +581,7 @@ impl pallet_democracy::Trait for Runtime {
 }
 
 parameter_types! {
-    pub const CouncilMotionDuration: BlockNumber = 7 * DAYS;
+    pub const CouncilMotionDuration: BlockNumber = 7 * MINUTES;
     pub const CouncilMaxProposals: u32 = 100;
     pub const CouncilMaxMembers: u32 = 100;
 }
@@ -602,7 +602,7 @@ parameter_types! {
     // 10 PCX
     pub const CandidacyBond: Balance = 1000 * DOLLARS;
     pub const VotingBond: Balance = 1 * DOLLARS;
-    pub const TermDuration: BlockNumber = 1 * DAYS;
+    pub const TermDuration: BlockNumber = 1 * MINUTES;
     pub const DesiredMembers: u32 = 11;
     pub const DesiredRunnersUp: u32 = 7;
     pub const ElectionsPhragmenModuleId: LockIdentifier = *b"pcx/phre";
@@ -632,7 +632,7 @@ impl pallet_elections_phragmen::Trait for Runtime {
 }
 
 parameter_types! {
-    pub const TechnicalMotionDuration: BlockNumber = 5 * DAYS;
+    pub const TechnicalMotionDuration: BlockNumber = 5 * MINUTES;
     pub const TechnicalMaxProposals: u32 = 100;
     pub const TechnicalMaxMembers: u32 = 100;
 }
@@ -996,6 +996,11 @@ impl xpallet_mining_asset::Trait for Runtime {
 
 impl xpallet_genesis_builder::Trait for Runtime {}
 
+impl pallet_sudo::Trait for Runtime {
+    type Event = Event;
+    type Call = Call;
+}
+
 construct_runtime!(
     pub enum Runtime where
         Block = Block,
@@ -1066,6 +1071,8 @@ construct_runtime!(
         XTransactionFee: xpallet_transaction_fee::{Module, Event<T>} = 35,
 
         Proxy: pallet_proxy::{Module, Call, Storage, Event<T>} = 36,
+
+        Sudo: pallet_sudo::{Module, Call, Config<T>, Storage, Event<T>} = 37,
     }
 );
 
